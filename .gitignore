@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+events.db
+capture/.build/
+*.jsonl
