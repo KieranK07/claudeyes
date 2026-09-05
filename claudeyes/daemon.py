@@ -70,7 +70,13 @@ def main() -> int:
                 m = pending.pop(0)
                 a = Action(kind=m.get("kind", ""), t=float(m.get("t", time.time())),
                            params=m.get("params", {}), source=m.get("source", "agent"))
-                bus.register(a)
+                if a.kind == "tool_done":
+                    # The tool returned, so its output is nearly finished. Shorten
+                    # the app scope rather than cutting it: the last lines are
+                    # still landing, and cutting mid-flush is a false wake-up.
+                    bus.close_app_scope(a.params.get("app", ""), a.t)
+                else:
+                    bus.register(a)
                 log.action(a)
 
             dirty = frame.get("dirty") or []

@@ -34,6 +34,7 @@ class Envelope:
     sigma: float = 0.0                         # falloff scale in px
     floor: float = 0.0                         # confidence far from centre
     group: str = ""                            # same group -> newer replaces older
+    app: str = ""                              # scope to an app instead of a rect
 
     def confidence(self, t: float) -> float:
         if t < self.t_start or t >= self.t_end:
@@ -136,6 +137,18 @@ def envelopes_for(action: Action, grid: Grid) -> list[Envelope]:
                  max(a.y + a.h, b.y + b.h) - min(a.y, b.y))
         return [Envelope(u, t, t + 0.45, 1.0, k)]
 
+    if k == "tool_use":
+        # An agent's tool call has no screen coordinates. Its screen effect is
+        # "the app hosting this is about to repaint": a Bash command fills the
+        # terminal, an edit redraws the editor. So the envelope is scoped to an
+        # app rather than to a rectangle, and ownership does the rest.
+        app = p.get("app") or ""
+        if not app:
+            return []
+        hold = float(p.get("expect_seconds", 20.0))
+        return [Envelope(screen, t, t + hold, 0.95, f"tool:{p.get('tool','?')}",
+                         group=f"tool:{app}", app=app)]
+
     if k == "app_switch":
         return [Envelope(screen, t, t + 0.9, 0.9, "app_switch")]
 
@@ -179,10 +192,27 @@ class ActionBus:
                 self.grid.stamp(m, env.rect, conf, mode="max")
         return m
 
+    def app_confidence(self, t: float) -> dict[str, float]:
+        """Apps that something we did has licensed to repaint, and how sure."""
+        out: dict[str, float] = {}
+        for env, conf in self.active(t):
+            if env.app:
+                out[env.app] = max(out.get(env.app, 0.0), conf)
+        return out
+
+    def close_app_scope(self, app: str, t: float, tail: float = 1.5) -> None:
+        """A tool finished. Its echo should be over shortly, so shorten rather
+        than cut -- the last of the output is still arriving."""
+        for e in self._env:
+            if e.app == app and e.t_end > t + tail:
+                e.t_end = t + tail
+
     def recent_apps(self, t: float, window: float = 2.5) -> set[str]:
         """Apps this actor has touched lately. Change outside them is foreign."""
         apps = {a.params.get("app") for a in self._log if 0 <= t - a.t <= window}
+        apps |= set(self.app_confidence(t))   # long-running tool scopes count too
         apps.discard(None)
+        apps.discard("")
         return apps
 
     def explain(self, t: float) -> list[str]:

@@ -1,6 +1,27 @@
+# Python
 __pycache__/
 *.pyc
 .venv/
-events.db
+venv/
+*.egg-info/
+build/
+dist/
+
+# Swift build output (the ModuleCache alone is ~80MB)
 capture/.build/
+.swiftpm/
+
+# Runtime state
+events.db
+*.db
+*.sqlite3
 *.jsonl
+*.sock
+
+# Local machine config
+.claude/settings.local.json
+.env
+.env.local
+
+# macOS
+.DS_Store

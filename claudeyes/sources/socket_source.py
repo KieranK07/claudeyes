@@ -21,7 +21,8 @@ import threading
 import time
 from typing import Callable
 
-DEFAULT_PATH = os.path.expanduser("~/.claudeyes/actions.sock")
+DEFAULT_PATH = os.environ.get(
+    "CLAUDEYES_SOCK", os.path.expanduser("~/.claudeyes/actions.sock"))
 
 
 class SocketActionSource:

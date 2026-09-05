@@ -14,6 +14,7 @@
 
 import AVFoundation
 import CoreGraphics
+import CoreMedia
 import Foundation
 import ScreenCaptureKit
 
@@ -96,6 +97,18 @@ final class Capture: NSObject, SCStreamOutput, SCStreamDelegate {
     func start() async throws {
         let content = try await SCShareableContent.excludingDesktopWindows(
             false, onScreenWindowsOnly: true)
+        // SCK does not error on missing Screen Recording permission. It returns
+        // empty results. This is the single most common way this fails.
+        if content.displays.isEmpty && content.applications.isEmpty {
+            FileHandle.standardError.write(Data("""
+            claudeyes: SCShareableContent returned nothing.
+            That means Screen Recording permission, not a bug. Grant it in
+            System Settings > Privacy & Security > Screen Recording, for the
+            terminal app you launched this from, then restart that terminal.
+            \n
+            """.utf8))
+            exit(2)
+        }
         guard let display = content.displays.first else {
             FileHandle.standardError.write(Data("claudeyes: no display\n".utf8))
             exit(1)
@@ -140,17 +153,25 @@ final class Capture: NSObject, SCStreamOutput, SCStreamDelegate {
 
         guard let dicts = info[.dirtyRects] as? [[String: Any]] else { return }
         let rects = dicts.compactMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) }
-        let t = CMSampleBufferGetPresentationTimeStamp(sb).seconds
-        emitter.emit(dirty: rects, t: t > 0 ? Date().timeIntervalSince1970 : Date().timeIntervalSince1970)
+        // Presentation timestamps are on the host clock, not the wall clock, and
+        // the Python side correlates against wall-clock action timestamps. Use
+        // wall clock here or every envelope will miss by the uptime offset.
+        emitter.emit(dirty: rects, t: Date().timeIntervalSince1970)
     }
 
-    // Streams die on sleep/wake with -3821. That is routine, not exceptional.
+    // Streams die on sleep/wake with -3821. That is routine, not exceptional,
+    // so restart -- but back off, or a stream that fails instantly spins hot.
+    private var restarts = 0
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        FileHandle.standardError.write(Data("claudeyes: stream stopped (\(error)); restarting\n".utf8))
         self.stream = nil
+        restarts += 1
+        let delay = min(30.0, pow(2.0, Double(min(restarts, 5))))
+        FileHandle.standardError.write(Data(
+            "claudeyes: stream stopped (\(error)); retry \(restarts) in \(Int(delay))s\n".utf8))
         Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            try? await self.start()
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            do { try await self.start(); self.restarts = 0 }
+            catch { FileHandle.standardError.write(Data("claudeyes: restart failed: \(error)\n".utf8)) }
         }
     }
 }

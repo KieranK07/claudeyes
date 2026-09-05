@@ -96,6 +96,14 @@ class Detector:
         observed = self.grid.rasterize(obs.dirty) > 0.5
         predicted = self.bus.predicted_mask(obs.t)
 
+        # App-scoped envelopes: licensed by name, not by geometry.
+        licensed = self.bus.app_confidence(obs.t)
+        if licensed:
+            for r in obs.dirty:
+                app = r.get("app") if isinstance(r, dict) else None
+                if app and app in licensed:
+                    self.grid.stamp(predicted, Rect.from_any(r), licensed[app], mode="max")
+
         acted_apps = self.bus.recent_apps(obs.t)
         if acted_apps:
             foreign = self.grid.zeros()
