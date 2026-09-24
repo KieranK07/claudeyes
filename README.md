@@ -175,7 +175,7 @@ The Swift shim compiles clean against the current toolchain, but **it has not
 been run through a real session with Screen Recording granted**, so the frame
 rate, the dirty-rect fidelity and the window-ownership index are all unproven
 against a live desktop. That is the gap between this being a nice model and
-being something I use daily.
+being usable daily.
 
 Not built: habituation dynamics (spontaneous recovery, generalisation gradient,
 dishabituation) and the priority map's selection-history term. Both already have
