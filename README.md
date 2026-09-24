@@ -101,6 +101,7 @@ starts getting woken.
 ## Try it without a Mac
 
 ```
+pip install -e .    # installs numpy
 python3 tools/demo.py
 ```
 
