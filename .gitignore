@@ -25,3 +25,18 @@ events.db
 
 # macOS
 .DS_Store
+
+# Screen captures and recordings (this tool watches the screen; never track them)
+*.png
+*.jpg
+*.jpeg
+*.heic
+*.tiff
+*.gif
+*.mov
+*.mp4
+*.m4v
+*.webm
+captures/
+recordings/
+screenshots/
